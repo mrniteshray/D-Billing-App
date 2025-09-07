@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "879694943425",
+    "project_id": "billing-pro---forangex",
+    "storage_bucket": "billing-pro---forangex.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:879694943425:android:9a9fd8771a569b86f5f040",
+        "android_client_info": {
+          "package_name": "com.niteshray.xapps.billingpro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB64hUpABgsXXWalnWGnUkcyajaDBZelhQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
