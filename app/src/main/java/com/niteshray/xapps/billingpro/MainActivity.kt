@@ -9,6 +9,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.niteshray.xapps.billingpro.ui.screens.MainScreen
+import com.niteshray.xapps.billingpro.ui.screens.BillingScreen
+import com.niteshray.xapps.billingpro.ui.screens.BillsHistoryScreen
 import com.niteshray.xapps.billingpro.features.ProductManagement.ui.ProductManagementScreen
 import com.niteshray.xapps.billingpro.features.auth.ui.SignInScreen
 import com.niteshray.xapps.billingpro.features.auth.ui.SignUpScreen
@@ -67,6 +69,12 @@ fun BillingProApp() {
                 onNavigateToProducts = {
                     navController.navigate("products")
                 },
+                onNavigateToBilling = { customerName, customerPhone ->
+                    navController.navigate("billing/$customerName/$customerPhone")
+                },
+                onNavigateToBillsHistory = {
+                    navController.navigate("bills_history")
+                },
                 onLogout = {
                     navController.navigate("signin") {
                         popUpTo("main") { inclusive = true }
@@ -77,6 +85,27 @@ fun BillingProApp() {
         
         composable("products") {
             ProductManagementScreen()
+        }
+        
+        composable("bills_history") {
+            BillsHistoryScreen(
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable("billing/{customerName}/{customerPhone}") { backStackEntry ->
+            val customerName = backStackEntry.arguments?.getString("customerName") ?: ""
+            val customerPhone = backStackEntry.arguments?.getString("customerPhone") ?: ""
+            
+            BillingScreen(
+                customerName = customerName,
+                customerPhone = customerPhone,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }

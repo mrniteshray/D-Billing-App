@@ -145,14 +145,6 @@ fun AddMethodCard(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            
-            // Arrow Icon
-//            Icon(
-//                imageVector = Icons.Filled.ArrowForward,
-//                contentDescription = null,
-//                tint = TextSecondary,
-//                modifier = Modifier.size(20.dp)
-//            )
         }
     }
 }
