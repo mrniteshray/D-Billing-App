@@ -27,13 +27,20 @@ import com.niteshray.xapps.billingpro.ui.theme.*
 import com.niteshray.xapps.billingpro.utils.ProductUtils
 import com.niteshray.xapps.billingpro.utils.PdfGenerator
 import com.niteshray.xapps.billingpro.features.ProductManagement.ui.viewmodel.ProductViewModel
-import com.niteshray.xapps.billingpro.viewmodel.BillViewModel
+import com.niteshray.xapps.billingpro.features.billing.ui.BillViewModel
 import com.niteshray.xapps.billingpro.data.database.BillingProDatabase
 import com.google.firebase.auth.FirebaseAuth
 
 data class CartItem(
     val product: Product,
     val quantity: Int = 1
+)
+
+// Track inventory selections for proper inventory updates
+data class InventoryUpdate(
+    val originalProductId: String,
+    val requestedQuantity: Double,
+    val cartItemId: String // To link with cart items
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,8 +60,12 @@ fun BillingScreen(
     
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var cartItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
+    var inventoryUpdates by remember { mutableStateOf<List<InventoryUpdate>>(emptyList()) } // Track inventory to update
     var isProcessing by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var showManualEntryDialog by remember { mutableStateOf(false) }
+    var showInventorySelectionDialog by remember { mutableStateOf(false) }
+    var shareToWhatsApp by remember { mutableStateOf(false) } // Track if user wants WhatsApp sharing
     
     // Collect products from viewmodel
     val allProducts by productViewModel.products.collectAsState()
@@ -69,6 +80,123 @@ fun BillingScreen(
     // Calculate total
     val totalAmount = cartItems.sumOf { it.product.price * it.quantity }
     
+    // Function to handle bill generation
+    fun generateBill() {
+        // Prepare cart data for bill saving
+        val cartItemsData = cartItems.map { it.product.productId to it.quantity }
+        val productDetails = cartItems.associate {
+            it.product.productId to (it.product.name to it.product.price)
+        }
+
+        // Save bill to database
+        billViewModel.saveBill(
+            userId = userId,
+            customerName = customerName,
+            customerPhone = customerPhone,
+            cartItems = cartItemsData,
+            productDetails = productDetails
+        ) { billId ->
+            // Update inventory quantities based on tracked inventory updates
+            inventoryUpdates.forEach { update ->
+                coroutineScope.launch {
+                    // Get current product from inventory
+                    val currentProduct = productViewModel.getProductById(update.originalProductId)
+                    if (currentProduct != null) {
+                        val newQuantity = (currentProduct.quantity - update.requestedQuantity).toInt()
+                        if (newQuantity >= 0) {
+                            productViewModel.updateProductQuantity(
+                                update.originalProductId,
+                                newQuantity
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Also handle regular barcode scanned items (existing logic)
+            cartItems.forEach { cartItem ->
+                // Only update if it's a regular product (not virtual cart item)
+                if (!cartItem.product.productId.startsWith("CART_") &&
+                    !cartItem.product.productId.startsWith("MANUAL_")) {
+                    val newQuantity = cartItem.product.quantity - cartItem.quantity
+                    if (newQuantity >= 0) {
+                        productViewModel.updateProductQuantity(
+                            cartItem.product.productId,
+                            newQuantity
+                        )
+                    }
+                }
+            }
+
+            // Generate PDF using coroutine
+            coroutineScope.launch {
+                try {
+                    val bill = billViewModel.getBillById(billId)
+                    val billItems = billViewModel.getBillItems(billId)
+
+                    if (bill != null && billItems.isNotEmpty()) {
+                        PdfGenerator.generateBillPdf(
+                            context = context,
+                            bill = bill,
+                            billItems = billItems,
+                            onPdfGenerated = { file ->
+                                isProcessing = false
+                                PdfGenerator.openPdf(context, file)
+
+//                                if (shareToWhatsApp && customerPhone.isNotBlank()) {
+//                                    // Share to WhatsApp
+//
+//                                    Toast.makeText(
+//                                        context,
+//                                        "Bill generated and WhatsApp opened for sharing!",
+//                                        Toast.LENGTH_LONG
+//                                    ).show()
+//                                } else {
+//                                    // Just open PDF normally
+//                                    PdfGenerator.openPdf(context, file)
+//
+//                                    Toast.makeText(
+//                                        context,
+//                                        "Bill saved and PDF generated! File: ${file.name}",
+//                                        Toast.LENGTH_LONG
+//                                    ).show()
+//                                }
+
+                                // Reset and go back
+                                shareToWhatsApp = false
+                                cartItems = emptyList()
+                                inventoryUpdates = emptyList()
+                                onBack()
+                            },
+                            onError = { error ->
+                                isProcessing = false
+                                Toast.makeText(
+                                    context,
+                                    "Bill saved but PDF generation failed: $error",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        )
+                    } else {
+                        isProcessing = false
+                        Toast.makeText(
+                            context,
+                            "Bill saved but failed to retrieve bill data for PDF",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    isProcessing = false
+                    Toast.makeText(
+                        context,
+                        "Error generating PDF: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -117,17 +245,35 @@ fun BillingScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showBarcodeScanner = true },
-                containerColor = SecondaryTeal,
-                contentColor = Color.White
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.QrCodeScanner,
-                    contentDescription = "Scan Barcode"
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Scan Product")
+                // Manual Entry FAB - Now opens inventory selection
+                FloatingActionButton(
+                    onClick = { showInventorySelectionDialog = true },
+                    containerColor = PrimaryBlue,
+                    contentColor = Color.White,
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "Select from Inventory"
+                    )
+                }
+                
+                // Barcode Scanner FAB
+                ExtendedFloatingActionButton(
+                    onClick = { showBarcodeScanner = true },
+                    containerColor = SecondaryTeal,
+                    contentColor = Color.White
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.QrCodeScanner,
+                        contentDescription = "Scan Barcode"
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Scan Product")
+                }
             }
         },
         bottomBar = {
@@ -165,6 +311,8 @@ fun BillingScreen(
                         }
                         
                         Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
                         
                         Button(
                             onClick = { showConfirmDialog = true },
@@ -225,7 +373,7 @@ fun BillingScreen(
                         )
                         
                         Text(
-                            text = "Scan products to add them to cart",
+                            text = "Scan barcodes or add items manually",
                             fontSize = 16.sp,
                             color = TextSecondary,
                             textAlign = TextAlign.Center,
@@ -234,24 +382,29 @@ fun BillingScreen(
                         
                         Spacer(modifier = Modifier.height(24.dp))
                         
-                        Button(
-                            onClick = { showBarcodeScanner = true },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = SecondaryTeal
-                            ),
-                            shape = RoundedCornerShape(12.dp)
+                        // Action buttons
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.QrCodeScanner,
-                                contentDescription = null
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Start Scanning")
+                            Button(
+                                onClick = { showBarcodeScanner = true },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SecondaryTeal
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.QrCodeScanner,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Scan Barcode")
+                            }
                         }
                     }
                 }
             } else {
-                // Cart Items
                 Text(
                     text = "Cart Items (${cartItems.size})",
                     fontSize = 18.sp,
@@ -285,6 +438,12 @@ fun BillingScreen(
                                 }.filter { it.quantity > 0 }
                             },
                             onRemove = {
+                                // Remove corresponding inventory update if it exists
+                                inventoryUpdates = inventoryUpdates.filterNot { 
+                                    it.cartItemId == cartItem.product.productId 
+                                }
+                                
+                                // Remove from cart
                                 cartItems = cartItems.filter { 
                                     it.product.productId != cartItem.product.productId 
                                 }
@@ -376,87 +535,102 @@ fun BillingScreen(
             isProcessing = isProcessing,
             onConfirm = {
                 showConfirmDialog = false
+                shareToWhatsApp = false // Regular bill generation
                 isProcessing = true
-                
-                // Prepare cart data for bill saving
-                val cartItemsData = cartItems.map { it.product.productId to it.quantity }
-                val productDetails = cartItems.associate { 
-                    it.product.productId to (it.product.name to it.product.price) 
-                }
-                
-                // Save bill to database
-                billViewModel.saveBill(
-                    userId = userId,
-                    customerName = customerName,
-                    customerPhone = customerPhone,
-                    cartItems = cartItemsData,
-                    productDetails = productDetails
-                ) { billId ->
-                    // Update inventory quantities
-                    cartItems.forEach { cartItem ->
-                        val newQuantity = cartItem.product.quantity - cartItem.quantity
-                        if (newQuantity >= 0) {
-                            productViewModel.updateProductQuantity(
-                                cartItem.product.productId,
-                                newQuantity
-                            )
-                        }
-                    }
-                    
-                    // Generate PDF using coroutine
-                    coroutineScope.launch {
-                        try {
-                            val bill = billViewModel.getBillById(billId)
-                            val billItems = billViewModel.getBillItems(billId)
-                            
-                            if (bill != null && billItems.isNotEmpty()) {
-                                PdfGenerator.generateBillPdf(
-                                    context = context,
-                                    bill = bill,
-                                    billItems = billItems,
-                                    onPdfGenerated = { file ->
-                                        isProcessing = false
-                                        Toast.makeText(
-                                            context, 
-                                            "Bill saved and PDF generated! File: ${file.name}", 
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        
-                                        // Open the PDF
-                                        PdfGenerator.openPdf(context, file)
-                                    },
-                                    onError = { error ->
-                                        isProcessing = false
-                                        Toast.makeText(
-                                            context, 
-                                            "Bill saved but PDF generation failed: $error", 
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                )
-                            } else {
-                                isProcessing = false
-                                Toast.makeText(
-                                    context, 
-                                    "Bill saved but failed to retrieve bill data for PDF", 
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        } catch (e: Exception) {
-                            isProcessing = false
-                            Toast.makeText(
-                                context, 
-                                "Bill saved but PDF generation failed: ${e.message}", 
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                    
-                    Toast.makeText(context, "Bill Generated Successfully! Inventory Updated.", Toast.LENGTH_SHORT).show()
-                    onBack()
-                }
+                generateBill()
             },
             onDismiss = { showConfirmDialog = false }
+        )
+    }
+
+    // Inventory Selection Dialog (for existing products)
+    if (showInventorySelectionDialog) {
+        InventorySelectionDialog(
+            onDismiss = { showInventorySelectionDialog = false },
+            productViewModel = productViewModel,
+            onSelectProduct = { inventorySelection ->
+                // Generate a unique cart item ID that includes the original product ID
+                val cartItemId = "CART_${inventorySelection.product.productId}_${System.currentTimeMillis()}"
+                
+                // Add selected product to cart
+                val cartItem = CartItem(
+                    product = Product(
+                        productId = cartItemId,
+                        name = "${inventorySelection.product.name} (${inventorySelection.requestedQuantity} ${inventorySelection.unit})",
+                        price = inventorySelection.product.price * inventorySelection.requestedQuantity, // Total price for this quantity
+                        quantity = 1, // Always 1 since we calculated total price above
+                        userId = userId
+                    ),
+                    quantity = 1
+                )
+                
+                // Track inventory update for later with cart item reference
+                val inventoryUpdate = InventoryUpdate(
+                    originalProductId = inventorySelection.product.productId,
+                    requestedQuantity = inventorySelection.requestedQuantity,
+                    cartItemId = cartItemId
+                )
+                
+                // Add to cart and inventory tracking
+                cartItems = cartItems + cartItem
+                inventoryUpdates = inventoryUpdates + inventoryUpdate
+                showInventorySelectionDialog = false
+                
+                Toast.makeText(
+                    context,
+                    "${inventorySelection.product.name} (${inventorySelection.requestedQuantity} ${inventorySelection.unit}) added to cart!",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+                // Note: Inventory will be updated when bill is generated
+            }
+        )
+    }
+    
+    // Manual Product Entry Dialog (for creating new products)
+    if (showManualEntryDialog) {
+        ManualProductEntryDialog(
+            onDismiss = { showManualEntryDialog = false },
+            productViewModel = productViewModel,
+            isInventoryDialog = false, // This is for billing, not inventory
+            onAddProduct = { manualProduct ->
+                // Save to inventory if requested
+                // Create inventory product directly (force inventory save)
+                val productId = "BULK_${System.currentTimeMillis()}_${manualProduct.name.hashCode()}"
+                val productName = "${manualProduct.name} (per ${manualProduct.unit})"
+                val productPrice = manualProduct.price
+                val productQuantity = if (manualProduct.saveToInventory) manualProduct.inventoryStock.toInt() else manualProduct.quantity.toInt()
+
+                productViewModel.addProduct(productName, productPrice, productQuantity, productId)
+                    
+                    Toast.makeText(
+                        context,
+                        "${manualProduct.name} added to inventory!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                
+                // Create a virtual CartItem for manual product
+                val manualCartItem = CartItem(
+                    product = Product(
+                        productId = "MANUAL_${System.currentTimeMillis()}", // Unique ID
+                        name = "${manualProduct.name} (${manualProduct.quantity} ${manualProduct.unit})",
+                        price = manualProduct.price * manualProduct.quantity, // Total price
+                        quantity = 1, // Always 1 for manual items since we calculate total
+                        userId = userId
+                    ),
+                    quantity = 1 // Always 1 since price is already calculated
+                )
+                
+                // Add to cart
+                cartItems = cartItems + manualCartItem
+                showManualEntryDialog = false
+                
+                Toast.makeText(
+                    context, 
+                    "${manualProduct.name} added to cart!", 
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         )
     }
 }
@@ -632,21 +806,35 @@ fun BillConfirmationDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                enabled = !isProcessing,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryBlue
-                )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
+                // Regular Generate Button
+                Button(
+                    onClick = onConfirm,
+                    enabled = !isProcessing,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryBlue
                     )
-                } else {
-                    Text("Generate Bill")
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Processing...")
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Generate Bill Only")
+                    }
                 }
             }
         },

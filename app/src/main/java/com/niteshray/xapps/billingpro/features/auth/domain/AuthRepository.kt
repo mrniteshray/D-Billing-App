@@ -1,4 +1,4 @@
-package com.niteshray.xapps.billingpro.repository
+package com.niteshray.xapps.billingpro.features.auth.domain
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser

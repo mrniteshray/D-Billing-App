@@ -1,4 +1,4 @@
-package com.niteshray.xapps.billingpro.viewmodel
+package com.niteshray.xapps.billingpro.features.billing.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,34 +8,33 @@ import com.niteshray.xapps.billingpro.data.entity.BillItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.util.UUID
-import java.util.Date
 
 class BillViewModel(private val billDao: BillDao) : ViewModel() {
-    
+
     fun getAllBills(userId: String): Flow<List<Bill>> {
         return billDao.getAllBills(userId)
     }
-    
+
     fun getRecentBills(userId: String, limit: Int = 5): Flow<List<Bill>> {
         return billDao.getRecentBills(userId, limit)
     }
-    
+
     fun getBillCount(userId: String): Flow<Int> {
         return billDao.getBillCount(userId)
     }
-    
+
     fun getTotalSales(userId: String): Flow<Double?> {
         return billDao.getTotalSales(userId)
     }
-    
+
     suspend fun getBillById(billId: String): Bill? {
         return billDao.getBillById(billId)
     }
-    
+
     suspend fun getBillItems(billId: String): List<BillItem> {
         return billDao.getBillItems(billId)
     }
-    
+
     fun saveBill(
         userId: String,
         customerName: String,
@@ -51,7 +50,7 @@ class BillViewModel(private val billDao: BillDao) : ViewModel() {
                 quantity * price
             }
             val totalItems = cartItems.sumOf { it.second }
-            
+
             val bill = Bill(
                 billId = billId,
                 userId = userId,
@@ -62,7 +61,7 @@ class BillViewModel(private val billDao: BillDao) : ViewModel() {
                 createdAt = System.currentTimeMillis(),
                 billStatus = "Completed"
             )
-            
+
             val billItems = cartItems.map { (productId, quantity) ->
                 val (productName, productPrice) = productDetails[productId] ?: ("Unknown" to 0.0)
                 BillItem(
@@ -75,12 +74,12 @@ class BillViewModel(private val billDao: BillDao) : ViewModel() {
                     totalPrice = quantity * productPrice
                 )
             }
-            
+
             billDao.insertBillWithItems(bill, billItems)
             onBillSaved(billId)
         }
     }
-    
+
     fun deleteBill(billId: String) {
         viewModelScope.launch {
             billDao.deleteBillWithItems(billId)

@@ -28,6 +28,7 @@ import com.niteshray.xapps.billingpro.data.entity.Product
 import com.niteshray.xapps.billingpro.ui.theme.*
 import com.niteshray.xapps.billingpro.utils.ProductUtils
 import com.niteshray.xapps.billingpro.features.ProductManagement.ui.viewmodel.ProductViewModel
+import com.niteshray.xapps.billingpro.ui.screens.ManualProductEntryDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +46,7 @@ fun ProductManagementScreen(
     var showAddProductDialog by remember { mutableStateOf(false) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showEditProductDialog by remember { mutableStateOf(false) }
+    var showManualInventoryDialog by remember { mutableStateOf(false) }
     var productToEdit by remember { mutableStateOf<Product?>(null) }
     var scannedProductId by remember { mutableStateOf<String?>(null) }
     
@@ -244,6 +246,10 @@ fun ProductManagementScreen(
             onManualSelected = {
                 showAddMethodDialog = false
                 showAddProductDialog = true
+            },
+            onManualInventorySelected = {
+                showAddMethodDialog = false
+                showManualInventoryDialog = true
             }
         )
     }
@@ -289,6 +295,25 @@ fun ProductManagementScreen(
                 productViewModel.updateProduct(updatedProduct)
                 showEditProductDialog = false
                 productToEdit = null
+            }
+        )
+    }
+    
+    // Manual Inventory Entry Dialog
+    if (showManualInventoryDialog) {
+        ManualProductEntryDialog(
+            onDismiss = { showManualInventoryDialog = false },
+            productViewModel = productViewModel,
+            isInventoryDialog = true, // This is for inventory management
+            onAddProduct = { manualProduct ->
+                // Create inventory product directly (force inventory save)
+                val productId = "BULK_${System.currentTimeMillis()}_${manualProduct.name.hashCode()}"
+                val productName = "${manualProduct.name} (per ${manualProduct.unit})"
+                val productPrice = manualProduct.price
+                val productQuantity = if (manualProduct.saveToInventory) manualProduct.inventoryStock.toInt() else manualProduct.quantity.toInt()
+                
+                productViewModel.addProduct(productName, productPrice, productQuantity, productId)
+                showManualInventoryDialog = false
             }
         )
     }

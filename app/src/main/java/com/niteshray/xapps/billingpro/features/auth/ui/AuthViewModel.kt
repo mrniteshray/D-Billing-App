@@ -1,8 +1,9 @@
-package com.niteshray.xapps.billingpro.viewmodel
+package com.niteshray.xapps.billingpro.features.auth.ui
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.niteshray.xapps.billingpro.repository.AuthRepository
+import com.niteshray.xapps.billingpro.features.auth.domain.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +36,7 @@ class AuthViewModel : ViewModel() {
                 return@launch
             }
 
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 _authState.value = AuthState(errorMessage = "Please enter a valid email address")
                 return@launch
             }
@@ -63,7 +64,7 @@ class AuthViewModel : ViewModel() {
                 return@launch
             }
 
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 _authState.value = AuthState(errorMessage = "Please enter a valid email address")
                 return@launch
             }

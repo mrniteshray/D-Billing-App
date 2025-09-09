@@ -28,7 +28,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.niteshray.xapps.billingpro.ui.theme.*
 import com.niteshray.xapps.billingpro.utils.ProductUtils
 import com.niteshray.xapps.billingpro.features.ProductManagement.ui.viewmodel.ProductViewModel
-import com.niteshray.xapps.billingpro.viewmodel.BillViewModel
+import com.niteshray.xapps.billingpro.features.billing.ui.BillViewModel
 import com.niteshray.xapps.billingpro.data.database.BillingProDatabase
 import com.niteshray.xapps.billingpro.data.entity.Bill
 import java.text.SimpleDateFormat

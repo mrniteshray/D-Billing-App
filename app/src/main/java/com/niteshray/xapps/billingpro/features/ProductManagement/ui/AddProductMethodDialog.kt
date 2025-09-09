@@ -22,7 +22,8 @@ import com.niteshray.xapps.billingpro.ui.theme.*
 fun AddProductMethodDialog(
     onDismiss: () -> Unit,
     onScannerSelected: () -> Unit,
-    onManualSelected: () -> Unit
+    onManualSelected: () -> Unit,
+    onManualInventorySelected: () -> Unit = {}
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -62,13 +63,13 @@ fun AddProductMethodDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Manual Option
+                // Manual Option - Now uses the same dialog as Bulk/Loose Items
                 AddMethodCard(
                     icon = Icons.Filled.Edit,
                     title = "Manual Entry",
-                    description = "Enter product details manually",
+                    description = "Add items with custom units (kg, piece, liter, etc.)",
                     onClick = {
-                        onManualSelected()
+                        onManualInventorySelected() // Use the same callback as Bulk/Loose Items
                         onDismiss()
                     }
                 )

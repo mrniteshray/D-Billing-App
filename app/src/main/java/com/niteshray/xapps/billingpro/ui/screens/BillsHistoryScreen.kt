@@ -22,7 +22,7 @@ import com.niteshray.xapps.billingpro.data.entity.Bill
 import com.niteshray.xapps.billingpro.ui.theme.*
 import com.niteshray.xapps.billingpro.utils.ProductUtils
 import com.niteshray.xapps.billingpro.utils.PdfGenerator
-import com.niteshray.xapps.billingpro.viewmodel.BillViewModel
+import com.niteshray.xapps.billingpro.features.billing.ui.BillViewModel
 import com.niteshray.xapps.billingpro.data.database.BillingProDatabase
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
