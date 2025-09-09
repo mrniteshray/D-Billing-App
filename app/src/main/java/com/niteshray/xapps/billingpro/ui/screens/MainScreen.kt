@@ -1,5 +1,6 @@
 package com.niteshray.xapps.billingpro.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -78,7 +79,7 @@ fun MainScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "BillingPro",
+                        text = "Billing Buddy",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -359,16 +360,25 @@ fun MainScreen(
                     }
                 }
             } else {
-                Column(
+
+                LazyColumn(
                     modifier = Modifier.padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    recentBills.forEach { bill ->
+                ){
+                    items(recentBills){
                         RecentBillCard(
-                            bill = bill,
+                            bill = it,
                             onViewPdf = {
                                 // This will be handled by navigation to bills history for now
                                 onNavigateToBillsHistory()
+                            },
+                            onDelete = {
+                                billViewModel.deleteBill(it.billId)
+                                Toast.makeText(
+                                    context,
+                                    "Bill deleted successfully",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         )
                     }
@@ -545,24 +555,27 @@ fun StartBillingDialog(
 @Composable
 fun RecentBillCard(
     bill: Bill,
-    onViewPdf: () -> Unit
+    onViewPdf: () -> Unit,
+    onDelete: () -> Unit
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            // Bill Info
-            Column(
-                modifier = Modifier.weight(1f)
+            // Top row: Customer Name and Delete Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = bill.customerName,
@@ -570,40 +583,108 @@ fun RecentBillCard(
                     fontWeight = FontWeight.Medium,
                     color = TextPrimary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                if (bill.customerPhone.isNotBlank()) {
+                
+                IconButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Delete Bill",
+                        tint = ErrorRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Bottom row: Phone, Date and Amount Info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                // Left side: Phone and Date
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (bill.customerPhone.isNotBlank()) {
+                        Text(
+                            text = bill.customerPhone,
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                    }
                     Text(
-                        text = bill.customerPhone,
+                        text = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(bill.createdAt)),
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
                 }
-                Text(
-                    text = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(bill.createdAt)),
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
-            }
-            
-            // Amount and Actions
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    text = ProductUtils.formatPrice(bill.totalAmount),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryTeal
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${bill.totalItems} items",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
+                
+                // Right side: Amount and Items
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = ProductUtils.formatPrice(bill.totalAmount),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SecondaryTeal
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${bill.totalItems} items",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
             }
         }
+    }
+    
+    // Delete Confirmation Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = {
+                Text(
+                    text = "Delete Bill",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete this bill? This action cannot be undone.",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ErrorRed
+                    )
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false }
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
     }
 }

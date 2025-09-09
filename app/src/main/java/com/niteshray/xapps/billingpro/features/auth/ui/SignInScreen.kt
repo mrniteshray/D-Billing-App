@@ -54,6 +54,7 @@ fun SignInScreen(
     LaunchedEffect(authState.isSuccess) {
         if (authState.isSuccess) {
             authViewModel.resetState()
+            // For sign in, always go to main screen
             onSignInClick()
         }
     }
@@ -90,7 +91,7 @@ fun SignInScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "BP",
+                        text = "BB",
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White

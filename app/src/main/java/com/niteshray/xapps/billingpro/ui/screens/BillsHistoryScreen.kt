@@ -1,5 +1,6 @@
 package com.niteshray.xapps.billingpro.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -207,6 +208,14 @@ fun BillsHistoryScreen(
                                         // Handle error
                                     }
                                 }
+                            },
+                            onDelete = { selectedBill ->
+                                billViewModel.deleteBill(selectedBill.billId)
+                                Toast.makeText(
+                                    context,
+                                    "Bill deleted successfully",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         )
                     }
@@ -219,8 +228,11 @@ fun BillsHistoryScreen(
 @Composable
 fun BillHistoryCard(
     bill: Bill,
-    onViewPdf: (Bill) -> Unit
+    onViewPdf: (Bill) -> Unit,
+    onDelete: (Bill) -> Unit
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -232,21 +244,45 @@ fun BillHistoryCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            // Top row: Bill ID and Delete Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Bill #${bill.billId.take(8)}",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                IconButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Delete Bill",
+                        tint = ErrorRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Middle row: Customer info and Amount
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                // Left side: Customer info
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = "Bill #${bill.billId.take(8)}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = bill.customerName,
                         fontSize = 14.sp,
@@ -255,6 +291,7 @@ fun BillHistoryCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (bill.customerPhone.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = bill.customerPhone,
                             fontSize = 12.sp,
@@ -263,6 +300,7 @@ fun BillHistoryCard(
                     }
                 }
                 
+                // Right side: Amount info
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
@@ -282,6 +320,7 @@ fun BillHistoryCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
+            // Bottom row: Date and View PDF Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -312,5 +351,45 @@ fun BillHistoryCard(
                 }
             }
         }
+    }
+    
+    // Delete Confirmation Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = {
+                Text(
+                    text = "Delete Bill",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete this bill? This action cannot be undone.",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(bill)
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ErrorRed
+                    )
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false }
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
     }
 }

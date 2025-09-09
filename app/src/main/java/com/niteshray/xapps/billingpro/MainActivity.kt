@@ -8,12 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.google.firebase.auth.FirebaseAuth
+import com.niteshray.xapps.billingpro.feature.auth.ui.SignUpScreen
 import com.niteshray.xapps.billingpro.ui.screens.MainScreen
 import com.niteshray.xapps.billingpro.ui.screens.BillingScreen
 import com.niteshray.xapps.billingpro.ui.screens.BillsHistoryScreen
 import com.niteshray.xapps.billingpro.features.ProductManagement.ui.ProductManagementScreen
 import com.niteshray.xapps.billingpro.features.auth.ui.SignInScreen
-import com.niteshray.xapps.billingpro.features.auth.ui.SignUpScreen
+import com.niteshray.xapps.billingpro.features.profile.ui.ProfileSetupScreen
 import com.niteshray.xapps.billingpro.ui.theme.BillingProTheme
 
 class MainActivity : ComponentActivity() {
@@ -31,10 +33,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun BillingProApp() {
     val navController = rememberNavController()
+
+    val startDestination = if (FirebaseAuth.getInstance().currentUser!=null){
+        "main"
+    }else{
+        "signin"
+    }
     
     NavHost(
         navController = navController,
-        startDestination = "signin"
+        startDestination = startDestination
     ) {
         composable("signin") {
             SignInScreen(
@@ -57,9 +65,22 @@ fun BillingProApp() {
                         popUpTo("signup") { inclusive = true }
                     }
                 },
+                onProfileSetupClick = {
+                    navController.navigate("profile_setup")
+                },
                 onSignInClick = {
                     // Navigate back to sign in screen
                     navController.popBackStack()
+                }
+            )
+        }
+        
+        composable("profile_setup") {
+            ProfileSetupScreen(
+                onProfileSetupComplete = {
+                    navController.navigate("main") {
+                        popUpTo("profile_setup") { inclusive = true }
+                    }
                 }
             )
         }

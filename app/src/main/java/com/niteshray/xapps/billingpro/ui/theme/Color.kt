@@ -11,9 +11,8 @@ val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
 
 // Modern colors for the app
-val PrimaryBlue = Color(0xFF2196F3)
-val PrimaryBlueDark = Color(0xFF1976D2)
-val SecondaryTeal = Color(0xFF00BCD4)
+val PrimaryBlue = Color(0xFF0c4ca1)
+val SecondaryTeal = Color(0xFF1d90f2)
 val WarningOrange = Color(0xFFFF9800)
 val BackgroundLight = Color(0xFFF5F5F5)
 val TextFieldBackground = Color(0xFFF8F9FA)

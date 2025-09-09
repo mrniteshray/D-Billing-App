@@ -4,6 +4,7 @@ import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.niteshray.xapps.billingpro.features.auth.domain.AuthRepository
+import com.niteshray.xapps.billingpro.features.profile.domain.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,21 +13,23 @@ import kotlinx.coroutines.launch
 data class AuthState(
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val needsProfileSetup: Boolean = false
 )
 
 class AuthViewModel : ViewModel() {
     private val authRepository = AuthRepository()
+    private val userRepository = UserRepository()
 
     private val _authState = MutableStateFlow(AuthState())
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    fun signUp(email: String, password: String, fullName: String, phone: String) {
+    fun signUp(email: String, password: String) {
         viewModelScope.launch {
             _authState.value = AuthState(isLoading = true)
             
             // Validate inputs
-            if (email.isBlank() || password.isBlank() || fullName.isBlank()) {
+            if (email.isBlank() || password.isBlank()) {
                 _authState.value = AuthState(errorMessage = "Please fill in all required fields")
                 return@launch
             }
@@ -45,7 +48,8 @@ class AuthViewModel : ViewModel() {
             
             result.fold(
                 onSuccess = {
-                    _authState.value = AuthState(isSuccess = true)
+                    // After successful signup, user needs profile setup
+                    _authState.value = AuthState(isSuccess = true, needsProfileSetup = true)
                 },
                 onFailure = { exception ->
                     _authState.value = AuthState(errorMessage = getErrorMessage(exception))
@@ -72,8 +76,9 @@ class AuthViewModel : ViewModel() {
             val result = authRepository.signInWithEmailAndPassword(email, password)
             
             result.fold(
-                onSuccess = {
-                    _authState.value = AuthState(isSuccess = true)
+                onSuccess = { user ->
+                    // For sign in, go directly to main screen
+                    _authState.value = AuthState(isSuccess = true, needsProfileSetup = false)
                 },
                 onFailure = { exception ->
                     _authState.value = AuthState(errorMessage = getErrorMessage(exception))

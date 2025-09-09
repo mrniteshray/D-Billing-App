@@ -59,6 +59,7 @@ dependencies {
     // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.firebase.firestore)
     ksp(libs.androidx.room.compiler)
     
     // Barcode Scanner
@@ -66,6 +67,10 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.0")
     implementation("androidx.camera:camera-view:1.3.0")
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
+    
+    // Required for CameraX ListenableFuture
+    implementation("androidx.concurrent:concurrent-futures:1.1.0")
+    implementation("com.google.guava:guava:31.1-android")
     
     // PDF Generation
     implementation("com.itextpdf:itextpdf:5.5.13.3")

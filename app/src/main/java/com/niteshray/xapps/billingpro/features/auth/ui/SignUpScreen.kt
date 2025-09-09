@@ -1,4 +1,4 @@
-package com.niteshray.xapps.billingpro.features.auth.ui
+package com.niteshray.xapps.billingpro.feature.auth.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -29,12 +29,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.niteshray.xapps.billingpro.features.auth.ui.AuthViewModel
 import com.niteshray.xapps.billingpro.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignUpScreen(
     onSignUpClick: () -> Unit = {},
+    onProfileSetupClick: () -> Unit = {},
     onSignInClick: () -> Unit = {},
     authViewModel: AuthViewModel = viewModel()
 ) {
@@ -52,7 +54,8 @@ fun SignUpScreen(
     LaunchedEffect(authState.isSuccess) {
         if (authState.isSuccess) {
             authViewModel.resetState()
-            onSignUpClick()
+            // After successful signup, always go to profile setup
+            onProfileSetupClick()
         }
     }
 
@@ -88,7 +91,7 @@ fun SignUpScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "BP",
+                        text = "BB",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -107,7 +110,7 @@ fun SignUpScreen(
             )
 
             Text(
-                text = "Sign up to get started with BillingPro",
+                text = "Create your account to get started",
                 fontSize = 16.sp,
                 color = TextSecondary,
                 textAlign = TextAlign.Center,
@@ -118,31 +121,11 @@ fun SignUpScreen(
 
             // Form Fields
             CustomTextField(
-                value = fullName,
-                onValueChange = { fullName = it },
-                label = "Full Name",
-                icon = Icons.Filled.Person,
-                keyboardType = KeyboardType.Text
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            CustomTextField(
                 value = email,
                 onValueChange = { email = it },
                 label = "Email Address",
                 icon = Icons.Filled.Email,
                 keyboardType = KeyboardType.Email
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            CustomTextField(
-                value = phone,
-                onValueChange = { phone = it },
-                label = "Phone Number",
-                icon = Icons.Filled.Phone,
-                keyboardType = KeyboardType.Phone
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -191,7 +174,7 @@ fun SignUpScreen(
                         // You can show a snackbar or toast here
                         return@Button
                     }
-                    authViewModel.signUp(email, password, fullName, phone)
+                    authViewModel.signUp(email, password)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -200,7 +183,7 @@ fun SignUpScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PrimaryBlue
                 ),
-                enabled = !authState.isLoading && fullName.isNotBlank() && email.isNotBlank() && 
+                enabled = !authState.isLoading && email.isNotBlank() && 
                          password.isNotBlank() && confirmPassword.isNotBlank()
             ) {
                 if (authState.isLoading) {
