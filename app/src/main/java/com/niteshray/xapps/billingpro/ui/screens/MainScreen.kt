@@ -1,9 +1,13 @@
 package com.niteshray.xapps.billingpro.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,8 +18,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -24,6 +30,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.niteshray.xapps.billingpro.ui.theme.*
@@ -50,7 +57,7 @@ fun MainScreen(
     val userId = currentUser?.uid ?: "unknown"
     
     // Initialize BillViewModel
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val database = BillingProDatabase.getDatabase(context)
     val billViewModel = BillViewModel(database.billDao())
     
@@ -59,6 +66,7 @@ fun MainScreen(
     val totalInventoryValue by productViewModel.totalInventoryValue.collectAsState()
     val lowStockProducts by productViewModel.lowStockProducts.collectAsState()
     val isLoading by productViewModel.isLoading.collectAsState()
+    val user by productViewModel.user.collectAsStateWithLifecycle()
     
     // Get recent bills data
     val recentBills by billViewModel.getRecentBills(userId, 5).collectAsState(initial = emptyList())
@@ -142,250 +150,286 @@ fun MainScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showBillingDialog = true },
-                containerColor = SecondaryTeal,
-                contentColor = Color.White
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Receipt,
-                    contentDescription = "Start Billing"
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Start Billing",
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(BackgroundLight)
-                .padding(paddingValues)
-
-        ) {
-            Text(
-                text = "Welcome Back",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary,
-                modifier = Modifier.padding(6.dp)
-            )
-
-            // Inventory Overview Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp)
-                ) {
-                    Text(
-                        text = "Inventory Overview",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        modifier = Modifier.padding(bottom = 20.dp)
+            user?.let{
+                if (it.unlocked){
+                    ExtendedFloatingActionButton(
+                        onClick = { showBillingDialog = true },
+                        containerColor = SecondaryTeal,
+                        contentColor = Color.White
                     )
-
-                    if (isLoading) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(120.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = PrimaryBlue)
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 24.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            // Total Products
-                            InventoryStatItem(
-                                icon = Icons.Filled.Inventory,
-                                label = "Total Products",
-                                value = productCount.toString(),
-                                color = PrimaryBlue,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            // Total Value
-                            InventoryStatItem(
-                                icon = Icons.Filled.CurrencyRupee,
-                                label = "Total Value",
-                                value = ProductUtils.formatPrice(totalInventoryValue),
-                                color = SecondaryTeal,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            // Low Stock
-                            InventoryStatItem(
-                                icon = Icons.Filled.TrendingDown,
-                                label = "Low Stock",
-                                value = lowStockProducts.size.toString(),
-                                color = if (lowStockProducts.isNotEmpty()) WarningOrange else SecondaryTeal,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // Add Products Button
-                        ElevatedButton(
-                            onClick = onNavigateToProducts,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.elevatedButtonColors(
-                                containerColor = PrimaryBlue,
-                                contentColor = Color.White
-                            ),
-                            elevation = ButtonDefaults.elevatedButtonElevation(
-                                defaultElevation = 4.dp
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Inventory,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Text(
-                                text = "Manage Products",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            Icon(
-                                imageVector = Icons.Filled.ArrowForward,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Recent Bills Section
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Recent Bills",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-                
-                TextButton(
-                    onClick = onNavigateToBillsHistory
-                ) {
-                    Text(
-                        text = "View All",
-                        color = PrimaryBlue,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = PrimaryBlue
-                    )
-                }
-            }
-            
-            // Recent Bills List
-            if (recentBills.isEmpty()) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Receipt,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = TextSecondary
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "No Bills Yet",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Generated bills will appear here",
-                                fontSize = 14.sp,
-                                color = TextSecondary,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            } else {
-
-                LazyColumn(
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ){
-                    items(recentBills){
-                        RecentBillCard(
-                            bill = it,
-                            onViewPdf = {
-                                // This will be handled by navigation to bills history for now
-                                onNavigateToBillsHistory()
-                            },
-                            onDelete = {
-                                billViewModel.deleteBill(it.billId)
-                                Toast.makeText(
-                                    context,
-                                    "Bill deleted successfully",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
+                    {
+                        Icon(
+                            imageVector = Icons.Filled.Receipt,
+                            contentDescription = "Start Billing"
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Start Billing",
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
 
         }
+    ) { paddingValues ->
+        Log.d("UserLod",user.toString())
+        if (isLoading){
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ){
+                CircularProgressIndicator()
+            }
+        }else{
+            user?.let {
+                if(it.unlocked){
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(BackgroundLight)
+                            .padding(paddingValues)
+
+                    )
+                    {
+                        Text(
+                            text = "Welcome Back",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary,
+                            modifier = Modifier.padding(6.dp)
+                        )
+
+                        // Show locked features card if user is not unlocked
+
+
+                        // Inventory Overview Card
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp)
+                            ) {
+                                Text(
+                                    text = "Inventory Overview",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    modifier = Modifier.padding(bottom = 20.dp)
+                                )
+
+                                if (isLoading) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(120.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(color = PrimaryBlue)
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 24.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    ) {
+                                        // Total Products
+                                        InventoryStatItem(
+                                            icon = Icons.Filled.Inventory,
+                                            label = "Total Products",
+                                            value = productCount.toString(),
+                                            color = PrimaryBlue,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        Spacer(modifier = Modifier.width(16.dp))
+
+                                        // Total Value
+                                        InventoryStatItem(
+                                            icon = Icons.Filled.CurrencyRupee,
+                                            label = "Total Value",
+                                            value = ProductUtils.formatPrice(totalInventoryValue),
+                                            color = SecondaryTeal,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        Spacer(modifier = Modifier.width(16.dp))
+
+                                        // Low Stock
+                                        InventoryStatItem(
+                                            icon = Icons.Filled.TrendingDown,
+                                            label = "Low Stock",
+                                            value = lowStockProducts.size.toString(),
+                                            color = if (lowStockProducts.isNotEmpty()) WarningOrange else SecondaryTeal,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+
+                                    // Add Products Button
+                                    ElevatedButton(
+                                        onClick = onNavigateToProducts,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(50.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.elevatedButtonColors(
+                                            containerColor = PrimaryBlue,
+                                            contentColor = Color.White
+                                        ),
+                                        elevation = ButtonDefaults.elevatedButtonElevation(
+                                            defaultElevation = 4.dp
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Inventory,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Text(
+                                            text = "Manage Products",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+
+                                        Spacer(modifier = Modifier.weight(1f))
+
+                                        Icon(
+                                            imageVector = Icons.Filled.ArrowForward,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Recent Bills Section
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent Bills",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+
+                            TextButton(
+                                onClick = onNavigateToBillsHistory
+                            ) {
+                                Text(
+                                    text = "View All",
+                                    color = PrimaryBlue,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = PrimaryBlue
+                                )
+                            }
+                        }
+
+                        // Recent Bills List
+                        if (recentBills.isEmpty()) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Receipt,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(48.dp),
+                                            tint = TextSecondary
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "No Bills Yet",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "Generated bills will appear here",
+                                            fontSize = 14.sp,
+                                            color = TextSecondary,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+
+                            LazyColumn(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ){
+                                items(recentBills){
+                                    RecentBillCard(
+                                        bill = it,
+                                        onViewPdf = {
+                                            // This will be handled by navigation to bills history for now
+                                            onNavigateToBillsHistory()
+                                        },
+                                        onDelete = {
+                                            billViewModel.deleteBill(it.billId)
+                                            Toast.makeText(
+                                                context,
+                                                "Bill deleted successfully",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                    }
+                }else {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ){
+                        LockedFeaturesCard()
+                    }
+                }
+            }
+
+        }
+
+
     }
     
     // Billing Dialog
@@ -686,5 +730,101 @@ fun RecentBillCard(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun LockedFeaturesCard() {
+    val context = LocalContext.current
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(18.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = PrimaryBlue.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth().padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Lock Icon
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = "Locked Features",
+                modifier = Modifier.size(48.dp),
+                tint = PrimaryBlue
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "Features Locked",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Contact the developer to unlock features and enhance your billing experience.",
+                fontSize = 14.sp,
+                color = TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+
+            Text(
+                text = "7058548204 | 9175595765",
+                fontSize = 14.sp,
+                color = TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+            
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            // Contact Developer Button
+            Button(
+                onClick = {
+                    try {
+                        val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = Uri.parse("mailto:niteshr070104@gmail.com")
+                            putExtra(Intent.EXTRA_SUBJECT, "BillingPro - Premium Features Unlock Request")
+                            putExtra(Intent.EXTRA_TEXT, "Hi,\n\nI would like to unlock features for my BillingPro account.\n\nThank you!")
+                        }
+                        context.startActivity(emailIntent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "No email app found. Please contact: developer@billingpro.com", Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryBlue
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Email,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Contact Developer",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
     }
 }

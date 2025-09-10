@@ -7,7 +7,7 @@ data class User(
     val mobileNumber: String = "",
     val storeName: String = "",
     val gstNumber: String = "",
-    val isUnlocked: Boolean = true,
+    val unlocked: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val profileSetupCompleted: Boolean = false

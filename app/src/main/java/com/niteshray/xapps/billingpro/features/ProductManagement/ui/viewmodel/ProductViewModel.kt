@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.niteshray.xapps.billingpro.data.database.BillingProDatabase
 import com.niteshray.xapps.billingpro.data.entity.Product
+import com.niteshray.xapps.billingpro.data.model.User
 import com.niteshray.xapps.billingpro.features.ProductManagement.domain.ProductRepository
+import com.niteshray.xapps.billingpro.features.profile.domain.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,12 +25,23 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
 
     private val database = BillingProDatabase.Companion.getDatabase(application)
     private val repository = ProductRepository(database.productDao())
+    private val userRepository = UserRepository()
     private val firebaseAuth = FirebaseAuth.getInstance()
 
     // Simple variables instead of complex UiState
     private val _allProducts = MutableStateFlow<List<Product>>(emptyList())
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _user = MutableStateFlow<User?>(null)
+    val user get() = _user.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    init {
+        loadUserInfo()
+    }
 
     // Filtered products based on search query
     val products: StateFlow<List<Product>> = combine(
@@ -49,8 +62,33 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    fun loadUserInfo(){
+        val userId = currentUserId ?: return
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                val result = userRepository.getUser(userId)
+                result.fold(
+                    onSuccess = { user ->
+                        _user.value = user
+                    },
+                    onFailure = { exception ->
+                        _errorMessage.value = "Failed to load user info: ${exception.message}"
+                        // Set default user with isUnlocked = true if loading fails
+                        _user.value = User(userId = userId, unlocked = true)
+                    }
+                )
+            } catch (e: Exception) {
+                _errorMessage.value = "Error loading user info: ${e.message}"
+                // Set default user with isUnlocked = true if loading fails
+                _user.value = User(userId = userId, unlocked = true)
+            }
+            _isLoading.value = false
+
+        }
+    }
+
+
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -71,6 +109,7 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     init {
         // Only load data if user is authenticated
         if (currentUserId != null) {
+            loadUserInfo()
             loadProducts()
             loadLowStockProducts()
             loadInventoryStats()
@@ -238,6 +277,7 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     // Refresh data when user logs in
     fun onUserLoggedIn() {
         if (currentUserId != null) {
+            loadUserInfo()
             loadProducts()
             loadLowStockProducts()
             loadInventoryStats()
@@ -252,5 +292,6 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         _productCount.value = 0
         _searchQuery.value = ""
         _errorMessage.value = null
+        _user.value = User()
     }
 }

@@ -79,7 +79,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     mobileNumber = ValidationUtils.formatMobileNumber(mobileNumber),
                     storeName = storeName.trim(),
                     gstNumber = ValidationUtils.formatGSTNumber(gstNumber),
-                    isUnlocked = true,
+                    unlocked = true,
                     profileSetupCompleted = true
                 )
 
@@ -92,7 +92,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                         // Save to local preferences as well
                         preferencesManager.setUserName(user.name)
                         preferencesManager.setStoreName(user.storeName)
-                        preferencesManager.setIsUnlocked(user.isUnlocked)
+                        preferencesManager.setIsUnlocked(user.unlocked)
                         preferencesManager.setProfileSetupCompleted(true)
                         
                         _profileState.value = ProfileState(isSuccess = true)

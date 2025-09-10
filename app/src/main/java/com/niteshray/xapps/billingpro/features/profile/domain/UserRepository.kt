@@ -1,5 +1,6 @@
 package com.niteshray.xapps.billingpro.features.profile.domain
 
+import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import com.niteshray.xapps.billingpro.data.model.User
 import kotlinx.coroutines.tasks.await

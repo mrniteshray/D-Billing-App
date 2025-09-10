@@ -1,6 +1,8 @@
 package com.niteshray.xapps.billingpro.ui.screens
 
+import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +32,8 @@ import com.niteshray.xapps.billingpro.features.ProductManagement.ui.viewmodel.Pr
 import com.niteshray.xapps.billingpro.features.billing.ui.BillViewModel
 import com.niteshray.xapps.billingpro.data.database.BillingProDatabase
 import com.google.firebase.auth.FirebaseAuth
+import com.niteshray.xapps.billingpro.utils.ScannerSoundHelper
+import com.niteshray.xapps.billingpro.utils.WhatsAppShareHelper
 
 data class CartItem(
     val product: Product,
@@ -57,6 +61,8 @@ fun BillingScreen(
     val auth = FirebaseAuth.getInstance()
     val userId = auth.currentUser?.uid ?: "unknown"
     val coroutineScope = rememberCoroutineScope()
+
+
     
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var cartItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
@@ -69,6 +75,17 @@ fun BillingScreen(
     
     // Collect products from viewmodel
     val allProducts by productViewModel.products.collectAsState()
+
+    BackHandler(
+        enabled = showBarcodeScanner || showConfirmDialog || showInventorySelectionDialog || showManualEntryDialog
+    ) {
+        when {
+            showBarcodeScanner -> showBarcodeScanner = false
+            showConfirmDialog -> showConfirmDialog = false
+            showInventorySelectionDialog -> showInventorySelectionDialog = false
+            showManualEntryDialog -> showManualEntryDialog = false
+        }
+    }
     
     // Load products when screen opens
     LaunchedEffect(Unit) {
@@ -142,28 +159,19 @@ fun BillingScreen(
                             onPdfGenerated = { file ->
                                 isProcessing = false
                                 PdfGenerator.openPdf(context, file)
+                                WhatsAppShareHelper.shareToWhatsApp(
+                                    context,
+                                    file,
+                                    phoneNumber = customerPhone,
+                                    onSuccess = {
+                                        Toast.makeText(context,"Send Successfully",Toast.LENGTH_LONG).show()
+                                    },
+                                    onError = {
+                                        Toast.makeText(context,"Error $it",Toast.LENGTH_LONG).show()
+                                        Log.d("WhatsappError",it)
 
-//                                if (shareToWhatsApp && customerPhone.isNotBlank()) {
-//                                    // Share to WhatsApp
-//
-//                                    Toast.makeText(
-//                                        context,
-//                                        "Bill generated and WhatsApp opened for sharing!",
-//                                        Toast.LENGTH_LONG
-//                                    ).show()
-//                                } else {
-//                                    // Just open PDF normally
-//                                    PdfGenerator.openPdf(context, file)
-//
-//                                    Toast.makeText(
-//                                        context,
-//                                        "Bill saved and PDF generated! File: ${file.name}",
-//                                        Toast.LENGTH_LONG
-//                                    ).show()
-//                                }
-
-                                // Reset and go back
-                                shareToWhatsApp = false
+                                    }
+                                )
                                 cartItems = emptyList()
                                 inventoryUpdates = emptyList()
                                 onBack()
@@ -218,7 +226,20 @@ fun BillingScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                            onClick = {
+                                // Handle back press based on current state
+                                when {
+                                    showBarcodeScanner -> showBarcodeScanner = false
+                                    showConfirmDialog -> showConfirmDialog = false
+                                    showInventorySelectionDialog -> showInventorySelectionDialog =
+                                        false
+
+                                    showManualEntryDialog -> showManualEntryDialog = false
+                                    else -> onBack()
+                                }
+                            }
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -487,6 +508,7 @@ fun BillingScreen(
                             } else {
                                 cartItems + CartItem(scannedProduct, 1)
                             }
+                            ScannerSoundHelper.playBeepSound(context)
                             
                             // Show success toast
                             Toast.makeText(

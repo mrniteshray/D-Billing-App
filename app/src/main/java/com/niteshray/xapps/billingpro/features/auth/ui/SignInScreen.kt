@@ -1,5 +1,6 @@
 package com.niteshray.xapps.billingpro.features.auth.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -29,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
+import com.niteshray.xapps.billingpro.R
 import com.niteshray.xapps.billingpro.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,24 +83,16 @@ fun SignInScreen(
             verticalArrangement = Arrangement.Center
         ) {
             // App Logo/Title
-            Card(
-                modifier = Modifier.size(100.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = PrimaryBlue),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Box(
+             Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "BB",
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                    Image(
+                        painter = painterResource(R.drawable.icon),
+                        contentDescription = "",
+                        modifier = Modifier.size(100.dp)
                     )
                 }
-            }
 
             Spacer(modifier = Modifier.height(32.dp))
 
