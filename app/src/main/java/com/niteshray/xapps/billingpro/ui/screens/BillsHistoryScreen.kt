@@ -2,8 +2,10 @@ package com.niteshray.xapps.billingpro.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -12,9 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,11 +28,13 @@ import com.niteshray.xapps.billingpro.ui.theme.*
 import com.niteshray.xapps.billingpro.utils.ProductUtils
 import com.niteshray.xapps.billingpro.utils.PdfGenerator
 import com.niteshray.xapps.billingpro.features.billing.ui.BillViewModel
+import com.niteshray.xapps.billingpro.features.billing.ui.BillViewModel.DateFilter
 import com.niteshray.xapps.billingpro.data.database.BillingProDatabase
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,9 +47,128 @@ fun BillsHistoryScreen(
     val auth = FirebaseAuth.getInstance()
     val userId = auth.currentUser?.uid ?: "unknown"
     
-    val bills by billViewModel.getAllBills(userId).collectAsState(initial = emptyList())
-    val billCount by billViewModel.getBillCount(userId).collectAsState(initial = 0)
-    val totalSales by billViewModel.getTotalSales(userId).collectAsState(initial = 0.0)
+    // Date filtering states
+    var selectedDateFilter by remember { mutableStateOf(DateFilter.ALL) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var customSelectedDate by remember { mutableStateOf<Date?>(null) }
+    
+    // Get all bills first
+    val allBills by billViewModel.getAllBills(userId).collectAsState(initial = emptyList())
+    
+    // Filter bills based on selected date
+    val filteredBills by remember(allBills, selectedDateFilter, customSelectedDate) {
+        derivedStateOf {
+            when (selectedDateFilter) {
+                DateFilter.ALL -> allBills
+                DateFilter.TODAY -> {
+                    val startOfDay = Calendar.getInstance().apply {
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    val endOfDay = Calendar.getInstance().apply {
+                        set(Calendar.HOUR_OF_DAY, 23)
+                        set(Calendar.MINUTE, 59)
+                        set(Calendar.SECOND, 59)
+                        set(Calendar.MILLISECOND, 999)
+                    }
+                    allBills.filter { bill ->
+                        bill.createdAt >= startOfDay.timeInMillis && bill.createdAt <= endOfDay.timeInMillis
+                    }
+                }
+                DateFilter.YESTERDAY -> {
+                    val yesterday = Calendar.getInstance().apply {
+                        add(Calendar.DAY_OF_YEAR, -1)
+                    }
+                    val startOfDay = Calendar.getInstance().apply {
+                        time = yesterday.time
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    val endOfDay = Calendar.getInstance().apply {
+                        time = yesterday.time
+                        set(Calendar.HOUR_OF_DAY, 23)
+                        set(Calendar.MINUTE, 59)
+                        set(Calendar.SECOND, 59)
+                        set(Calendar.MILLISECOND, 999)
+                    }
+                    allBills.filter { bill ->
+                        bill.createdAt >= startOfDay.timeInMillis && bill.createdAt <= endOfDay.timeInMillis
+                    }
+                }
+                DateFilter.THIS_WEEK -> {
+                    val startOfWeek = Calendar.getInstance().apply {
+                        set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    val endOfWeek = Calendar.getInstance().apply {
+                        set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY)
+                        set(Calendar.HOUR_OF_DAY, 23)
+                        set(Calendar.MINUTE, 59)
+                        set(Calendar.SECOND, 59)
+                        set(Calendar.MILLISECOND, 999)
+                    }
+                    allBills.filter { bill ->
+                        bill.createdAt >= startOfWeek.timeInMillis && bill.createdAt <= endOfWeek.timeInMillis
+                    }
+                }
+                DateFilter.THIS_MONTH -> {
+                    val startOfMonth = Calendar.getInstance().apply {
+                        set(Calendar.DAY_OF_MONTH, 1)
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    val endOfMonth = Calendar.getInstance().apply {
+                        set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+                        set(Calendar.HOUR_OF_DAY, 23)
+                        set(Calendar.MINUTE, 59)
+                        set(Calendar.SECOND, 59)
+                        set(Calendar.MILLISECOND, 999)
+                    }
+                    allBills.filter { bill ->
+                        bill.createdAt >= startOfMonth.timeInMillis && bill.createdAt <= endOfMonth.timeInMillis
+                    }
+                }
+                DateFilter.CUSTOM -> {
+                    customSelectedDate?.let { date ->
+                        val startOfDay = Calendar.getInstance().apply {
+                            time = date
+                            set(Calendar.HOUR_OF_DAY, 0)
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        val endOfDay = Calendar.getInstance().apply {
+                            time = date
+                            set(Calendar.HOUR_OF_DAY, 23)
+                            set(Calendar.MINUTE, 59)
+                            set(Calendar.SECOND, 59)
+                            set(Calendar.MILLISECOND, 999)
+                        }
+                        allBills.filter { bill ->
+                            bill.createdAt >= startOfDay.timeInMillis && bill.createdAt <= endOfDay.timeInMillis
+                        }
+                    } ?: allBills
+                }
+            }
+        }
+    }
+    
+    // Calculate stats from filtered bills
+    val billCount by remember(filteredBills) { 
+        derivedStateOf { filteredBills.size } 
+    }
+    val totalSales by remember(filteredBills) { 
+        derivedStateOf { filteredBills.sumOf { it.totalAmount } } 
+    }
     val scope = rememberCoroutineScope()
     
     Scaffold(
@@ -76,8 +201,24 @@ fun BillsHistoryScreen(
                 .fillMaxSize()
                 .background(BackgroundLight)
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
         ) {
+            // Date Filter Section
+            DateFilterSection(
+                selectedFilter = selectedDateFilter,
+                onFilterSelected = { filter ->
+                    selectedDateFilter = filter
+                    if (filter == DateFilter.CUSTOM) {
+                        showDatePicker = true
+                    } else {
+                        customSelectedDate = null
+                    }
+                },
+                customSelectedDate = customSelectedDate
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             // Statistics Cards
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -134,7 +275,7 @@ fun BillsHistoryScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = ProductUtils.formatPrice(totalSales ?: 0.0),
+                            text = ProductUtils.formatPrice(totalSales),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
@@ -153,7 +294,7 @@ fun BillsHistoryScreen(
             Spacer(modifier = Modifier.height(20.dp))
             
             // Bills List
-            if (bills.isEmpty()) {
+            if (filteredBills.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -169,13 +310,16 @@ fun BillsHistoryScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "No Bills Yet",
+                            text = if (selectedDateFilter == DateFilter.ALL) "No Bills Yet" else "No Bills Found",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Medium,
                             color = TextPrimary
                         )
                         Text(
-                            text = "Generated bills will appear here",
+                            text = if (selectedDateFilter == DateFilter.ALL) 
+                                "Generated bills will appear here" 
+                            else 
+                                "No bills found for selected date",
                             fontSize = 14.sp,
                             color = TextSecondary
                         )
@@ -185,7 +329,7 @@ fun BillsHistoryScreen(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(bills) { bill ->
+                    items(filteredBills) { bill ->
                         BillHistoryCard(
                             bill = bill,
                             onViewPdf = { selectedBill ->
@@ -221,6 +365,157 @@ fun BillsHistoryScreen(
                     }
                 }
             }
+        }
+    }
+    
+    // Custom Date Picker Dialog
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            customSelectedDate = Date(millis)
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK", color = PrimaryBlue)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showDatePicker = false
+                        selectedDateFilter = DateFilter.ALL
+                    }
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    selectedDayContainerColor = PrimaryBlue,
+                    todayDateBorderColor = PrimaryBlue
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun DateFilterSection(
+    selectedFilter: DateFilter,
+    onFilterSelected: (DateFilter) -> Unit,
+    customSelectedDate: Date?
+) {
+    Column {
+        Text(
+            text = "Filter by Date",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+        )
+        
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) {
+            items(DateFilter.values()) { filter ->
+                DateFilterChip(
+                    filter = filter,
+                    isSelected = selectedFilter == filter,
+                    onClick = { onFilterSelected(filter) },
+                    customSelectedDate = if (filter == DateFilter.CUSTOM) customSelectedDate else null
+                )
+            }
+        }
+        
+        // Show selected custom date
+        if (selectedFilter == DateFilter.CUSTOM && customSelectedDate != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = PrimaryBlue.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DateRange,
+                        contentDescription = null,
+                        tint = PrimaryBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Selected: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(customSelectedDate)}",
+                        fontSize = 14.sp,
+                        color = PrimaryBlue,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DateFilterChip(
+    filter: DateFilter,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    customSelectedDate: Date?
+) {
+    val backgroundColor = if (isSelected) PrimaryBlue else Color.White
+    val contentColor = if (isSelected) Color.White else TextSecondary
+    val borderColor = if (isSelected) PrimaryBlue else Color.Gray.copy(alpha = 0.3f)
+    
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        color = backgroundColor,
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (filter == DateFilter.CUSTOM && customSelectedDate != null) {
+                Icon(
+                    imageVector = Icons.Filled.DateRange,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            
+            Text(
+                text = if (filter == DateFilter.CUSTOM && customSelectedDate != null) {
+                    SimpleDateFormat("dd MMM", Locale.getDefault()).format(customSelectedDate)
+                } else {
+                    filter.displayName
+                },
+                color = contentColor,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

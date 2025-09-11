@@ -3,6 +3,8 @@ package com.niteshray.xapps.billingpro.features.ProductManagement.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import com.niteshray.xapps.billingpro.data.entity.Product
 import com.niteshray.xapps.billingpro.ui.theme.*
 import com.niteshray.xapps.billingpro.utils.ProductUtils
@@ -34,6 +37,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
 import android.net.Uri
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +52,19 @@ fun ProductManagementScreen(
     
     // Context for file operations
     val context = LocalContext.current
+    
+    // Coroutine scope for animations
+    val scope = rememberCoroutineScope()
+    
+    // LazyList state for performance optimization
+    val listState = rememberLazyListState()
+    
+    // Show scroll to top button when user scrolls down
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 5
+        }
+    }
     
     // Dialog states
     var showAddMethodDialog by remember { mutableStateOf(false) }
@@ -140,15 +157,41 @@ fun ProductManagementScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddMethodDialog = true },
-                containerColor = PrimaryBlue,
-                contentColor = Color.White
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "Add Product"
-                )
+            Column {
+                // Scroll to top button (shown when scrolled down)
+                if (showScrollToTop) {
+                    FloatingActionButton(
+                        onClick = {
+                            // Smooth scroll to top
+                            scope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(bottom = 8.dp),
+                        containerColor = Color.White,
+                        contentColor = PrimaryBlue
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowUp,
+                            contentDescription = "Scroll to top",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                
+                // Add product button
+                FloatingActionButton(
+                    onClick = { showAddMethodDialog = true },
+                    containerColor = PrimaryBlue,
+                    contentColor = Color.White
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "Add Product"
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -272,10 +315,16 @@ fun ProductManagementScreen(
                 
                 // Products List
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)// Space for FAB
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 88.dp), // Space for FAB
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    items(products) { product ->
-                        ProductCard(
+                    items(
+                        items = products,
+                        key = { product -> product.productId } // Add key for better performance
+                    ) { product ->
+                        ProductCardOptimized(
                             product = product,
                             onEdit = { 
                                 productToEdit = product
@@ -372,6 +421,186 @@ fun ProductManagementScreen(
                 showManualInventoryDialog = false
             }
         )
+    }
+}
+
+@Composable
+fun ProductCardOptimized(
+    product: Product,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    // Memoize computed values to avoid recalculation
+    val totalValue = remember(product.price, product.quantity) { 
+        product.price * product.quantity 
+    }
+    val isLowStock = remember(product.quantity) { 
+        product.quantity <= 10 
+    }
+    val truncatedId = remember(product.productId) { 
+        product.productId.take(8) + "..."
+    }
+    val formattedPrice = remember(product.price) { 
+        ProductUtils.formatPrice(product.price) 
+    }
+    val formattedTotalValue = remember(totalValue) { 
+        ProductUtils.formatPrice(totalValue) 
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(), // Use wrapContentHeight instead of fillMaxHeight
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Product Header - Optimized layout
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = product.name,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    
+                    Text(
+                        text = "ID: $truncatedId",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                
+                // Stock Status Badge - Memoized
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isLowStock) WarningOrange.copy(alpha = 0.2f) else SecondaryTeal.copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = if (isLowStock) "Low Stock" else "In Stock",
+                        fontSize = 12.sp,
+                        color = if (isLowStock) WarningOrange else SecondaryTeal,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Product Details - Optimized with pre-computed values
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Price
+                ProductDetailColumn(
+                    label = "Price",
+                    value = formattedPrice,
+                    valueColor = PrimaryBlue
+                )
+                
+                // Quantity
+                ProductDetailColumn(
+                    label = "Quantity",
+                    value = "${product.quantity} units",
+                    valueColor = TextPrimary
+                )
+                
+                // Total Value
+                ProductDetailColumn(
+                    label = "Total Value",
+                    value = formattedTotalValue,
+                    valueColor = SecondaryTeal
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Action Buttons - Simplified
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                ProductActionButton(
+                    icon = Icons.Filled.Edit,
+                    text = "Edit",
+                    color = PrimaryBlue,
+                    onClick = onEdit
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                ProductActionButton(
+                    icon = Icons.Filled.Delete,
+                    text = "Delete",
+                    color = ErrorRed,
+                    onClick = onDelete
+                )
+            }
+        }
+    }
+}
+
+// Helper composable to reduce code duplication and improve performance
+@Composable
+private fun ProductDetailColumn(
+    label: String,
+    value: String,
+    valueColor: Color
+) {
+    Column {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = TextSecondary
+        )
+        Text(
+            text = value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
+    }
+}
+
+// Helper composable for action buttons
+@Composable
+private fun ProductActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.height(36.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = color
+        )
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(text, fontSize = 12.sp)
     }
 }
 
@@ -824,6 +1053,22 @@ fun SearchBar(
     modifier: Modifier = Modifier
 ) {
     var isActive by remember { mutableStateOf(false) }
+    var internalQuery by remember { mutableStateOf(searchQuery) }
+    
+    // Debounce search queries for better performance with large datasets
+    LaunchedEffect(internalQuery) {
+        delay(300) // 300ms debounce
+        if (internalQuery != searchQuery) {
+            onSearchQueryChange(internalQuery)
+        }
+    }
+    
+    // Update internal query when external query changes
+    LaunchedEffect(searchQuery) {
+        if (searchQuery != internalQuery) {
+            internalQuery = searchQuery
+        }
+    }
     
     Box(
         modifier = modifier
@@ -831,8 +1076,8 @@ fun SearchBar(
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
+            value = internalQuery,
+            onValueChange = { internalQuery = it },
             placeholder = {
                 Text(
                     text = "Search products...",
@@ -845,14 +1090,17 @@ fun SearchBar(
                 Icon(
                     imageVector = Icons.Filled.Search,
                     contentDescription = "Search",
-                    tint = if (isActive || searchQuery.isNotEmpty()) PrimaryBlue else Color.Gray.copy(alpha = 0.6f),
+                    tint = if (isActive || internalQuery.isNotEmpty()) PrimaryBlue else Color.Gray.copy(alpha = 0.6f),
                     modifier = Modifier.size(22.dp)
                 )
             },
             trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
+                if (internalQuery.isNotEmpty()) {
                     IconButton(
-                        onClick = { onSearchQueryChange("") }
+                        onClick = { 
+                            internalQuery = ""
+                            onSearchQueryChange("")
+                        }
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Clear,

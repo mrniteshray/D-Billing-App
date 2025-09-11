@@ -35,6 +35,16 @@ class BillViewModel(private val billDao: BillDao) : ViewModel() {
         return billDao.getBillItems(billId)
     }
 
+    // Add DateFilter enum
+    enum class DateFilter(val displayName: String) {
+        ALL("All"),
+        TODAY("Today"),
+        YESTERDAY("Yesterday"),
+        THIS_WEEK("This Week"),
+        THIS_MONTH("This Month"),
+        CUSTOM("Custom Date")
+    }
+
     fun saveBill(
         userId: String,
         customerName: String,
