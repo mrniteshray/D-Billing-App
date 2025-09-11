@@ -20,6 +20,16 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -294,4 +304,121 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
         _errorMessage.value = null
         _user.value = User()
     }
+
+    // Export products to JSON
+    fun exportProductsToJson(context: Context): Uri? {
+        val userId = currentUserId ?: return null
+        
+        return try {
+            val exportData = ExportData(
+                exportTimestamp = System.currentTimeMillis(),
+                userId = userId,
+                products = _allProducts.value.map { product ->
+                    ExportProduct(
+                        productId = product.productId,
+                        name = product.name,
+                        price = product.price,
+                        quantity = product.quantity,
+                        createdAt = product.createdAt,
+                        updatedAt = product.updatedAt
+                    )
+                }
+            )
+            
+            val json = Json { prettyPrint = true }
+            val jsonString = json.encodeToString(exportData)
+            
+            val fileName = "BillingPro_Products_${System.currentTimeMillis()}.json"
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val file = File(downloadsDir, fileName)
+            
+            FileOutputStream(file).use { outputStream ->
+                outputStream.write(jsonString.toByteArray())
+            }
+            
+            androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+        } catch (e: Exception) {
+            _errorMessage.value = "Export failed: ${e.message}"
+            null
+        }
+    }
+
+    // Import products from JSON
+    fun importProductsFromJson(context: Context, uri: Uri) {
+        val userId = currentUserId ?: return
+        
+        viewModelScope.launch {
+            try {
+                val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+                val jsonString = inputStream?.bufferedReader()?.use { it.readText() }
+                
+                if (jsonString != null) {
+                    val json = Json { ignoreUnknownKeys = true }
+                    val importData = json.decodeFromString<ExportData>(jsonString)
+                    
+                    var importedCount = 0
+                    var skippedCount = 0
+                    
+                    importData.products.forEach { exportProduct ->
+                        try {
+                            // Check if product already exists
+                            val existingProduct = repository.getProductByIdForUser(exportProduct.productId, userId)
+                            
+                            if (existingProduct == null) {
+                                val newProduct = Product(
+                                    productId = exportProduct.productId,
+                                    userId = userId,
+                                    name = exportProduct.name,
+                                    price = exportProduct.price,
+                                    quantity = exportProduct.quantity,
+                                    createdAt = exportProduct.createdAt,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                                repository.insertProduct(newProduct)
+                                importedCount++
+                            } else {
+                                skippedCount++
+                            }
+                        } catch (e: Exception) {
+                            skippedCount++
+                        }
+                    }
+                    
+                    _errorMessage.value = null
+                    if (importedCount > 0) {
+                        loadInventoryStats()
+                        _errorMessage.value = "Import successful: $importedCount products imported" + 
+                            if (skippedCount > 0) ", $skippedCount products skipped (already exist)" else ""
+                    } else {
+                        _errorMessage.value = "No new products imported. All products already exist."
+                    }
+                } else {
+                    _errorMessage.value = "Failed to read file content"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Import failed: ${e.message}"
+            }
+        }
+    }
 }
+
+@Serializable
+data class ExportData(
+    val exportTimestamp: Long,
+    val userId: String,
+    val products: List<ExportProduct>
+)
+
+@Serializable
+data class ExportProduct(
+    val productId: String,
+    val name: String,
+    val price: Double,
+    val quantity: Int,
+    val createdAt: Long,
+    val updatedAt: Long
+)

@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.gms.google.services)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -74,6 +75,9 @@ dependencies {
     
     // PDF Generation
     implementation("com.itextpdf:itextpdf:5.5.13.3")
+    
+    // Kotlinx Serialization
+    implementation(libs.kotlinx.serialization.json)
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

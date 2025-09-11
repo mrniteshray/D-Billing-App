@@ -16,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +30,10 @@ import com.niteshray.xapps.billingpro.ui.theme.*
 import com.niteshray.xapps.billingpro.utils.ProductUtils
 import com.niteshray.xapps.billingpro.features.ProductManagement.ui.viewmodel.ProductViewModel
 import com.niteshray.xapps.billingpro.ui.screens.ManualProductEntryDialog
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +46,9 @@ fun ProductManagementScreen(
     val errorMessage by productViewModel.errorMessage.collectAsState()
     val searchQuery by productViewModel.searchQuery.collectAsState()
     
+    // Context for file operations
+    val context = LocalContext.current
+    
     // Dialog states
     var showAddMethodDialog by remember { mutableStateOf(false) }
     var showAddProductDialog by remember { mutableStateOf(false) }
@@ -49,6 +57,20 @@ fun ProductManagementScreen(
     var showManualInventoryDialog by remember { mutableStateOf(false) }
     var productToEdit by remember { mutableStateOf<Product?>(null) }
     var scannedProductId by remember { mutableStateOf<String?>(null) }
+    
+    // File picker for import
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { productViewModel.importProductsFromJson(context, it) }
+    }
+    
+    // Share launcher for export
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        // Handle export result if needed
+    }
     
     // Check if user is authenticated
     if (!productViewModel.isUserAuthenticated()) {
@@ -75,6 +97,41 @@ fun ProductManagementScreen(
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
+                },
+                actions = {
+                    // Import Button
+                    IconButton(
+                        onClick = { importLauncher.launch("application/json") }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.FileDownload,
+                            contentDescription = "Import Products",
+                            tint = Color.White
+                        )
+                    }
+                    
+                    // Export Button
+                    IconButton(
+                        onClick = {
+                            val uri = productViewModel.exportProductsToJson(context)
+                            uri?.let {
+                                val shareIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_STREAM, it)
+                                    type = "application/json"
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                val chooser = Intent.createChooser(shareIntent, "Export Products")
+                                context.startActivity(chooser)
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.FileUpload,
+                            contentDescription = "Export Products",
+                            tint = Color.White
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = PrimaryBlue,
@@ -215,8 +272,7 @@ fun ProductManagementScreen(
                 
                 // Products List
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB
+                    verticalArrangement = Arrangement.spacedBy(12.dp)// Space for FAB
                 ) {
                     items(products) { product ->
                         ProductCard(
